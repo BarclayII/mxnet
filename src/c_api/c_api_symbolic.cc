@@ -17,6 +17,10 @@ namespace op {
 void RegisterLegacyOpProp();
 void RegisterLegacyNDFunc();
 }
+namespace exec {
+  // For MXSymbolGrad
+  nnvm::NodeEntry AttrHint(nnvm::NodeEntry src, nnvm::NodeEntry like);
+}
 const std::vector<std::string> kHiddenKeys = {
   "ctx_group", "lr_mult", "wd_mult", "force_mirroring", "mirror_stage"
 };
@@ -542,7 +546,53 @@ int MXSymbolInferType(SymbolHandle sym,
 }
 
 int MXSymbolGrad(SymbolHandle sym, mx_uint num_wrt, const char** wrt, SymbolHandle* out) {
+  nnvm::Symbol *s = static_cast<nnvm::Symbol*>(sym);
+  MXAPIThreadLocalEntry *ret = MXAPIThreadLocalStore::Get();
+  nnvm::Symbol *group = new nnvm::Symbol();
+
   API_BEGIN();
-  LOG(FATAL) << "not implemented";
-  API_END();
+
+  nnvm::Graph g = Symbol2Graph(*s);
+  const nnvm::IndexedGraph &idx = g.indexed_graph();
+  std::vector<nnvm::Symbol> grads;
+
+  // Find the input node entries whose names are in @wrt
+  std::vector<nnvm::NodePtr> inputs = s->ListInputs(nnvm::Symbol::kReadOnlyArgs);
+  std::vector<nnvm::NodeEntry> entries;
+
+  for (mx_uint i = 0; i < num_wrt; ++i) {
+    size_t j;
+
+    for (j = 0; j < inputs.size(); ++j) {
+      if (inputs[j]->attrs.name.compare(wrt[i]) == 0) {
+        entries.emplace_back(nnvm::NodeEntry{inputs[j], 0, 0});
+        break;
+      }
+    }
+    // TODO: better error message?
+    CHECK_NE(j, inputs.size()) << "Variable " << wrt[i] << "not found";
+  }
+
+  // Populate ys_out_grad argument for the subsequent Gradient() call.
+  std::vector<nnvm::NodeEntry> head_grad_entries;
+  for (size_t i = 0; i < g.outputs.size(); ++i) {
+    nnvm::NodeEntry ngrad{nnvm::Node::Create(), 0, 0};
+    head_grad_entries.emplace_back(mxnet::exec::AttrHint(ngrad, g.outputs[i]));
+  }
+
+  // Obtain the computation graph nodes for the gradients and populate @grads
+  nnvm::Graph g_grad = nnvm::pass::Gradient(g, s->outputs, entries, head_grad_entries);
+  CHECK_EQ(g_grad.outputs.size(), entries.size());
+  for (const auto &e : g_grad.outputs) {
+    nnvm::Symbol ret;
+    ret.outputs.push_back(e);
+    grads.push_back(ret);
+  }
+
+  // Create Symbol Group
+  *group = nnvm::Symbol::CreateGroup(grads);
+  *out = group;
+
+  //LOG(FATAL) << "not implemented";
+  API_END_HANDLE_ERROR(delete group;);
 }
