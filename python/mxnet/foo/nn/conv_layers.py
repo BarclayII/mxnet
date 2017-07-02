@@ -53,14 +53,14 @@ class _Conv(HybridLayer):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
     """
     def __init__(self, filters, kernel_size, strides, padding, dilation,
                  groups, layout, in_filters=0, activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None,
+                 weight_initializer=None, bias_initializer=None,
                  op_name='Convolution', prefix=None, params=None, **kwargs):
         super(_Conv, self).__init__(prefix=prefix, params=params)
         with self.name_scope():
@@ -84,7 +84,7 @@ class _Conv(HybridLayer):
             dshape[layout.find('C')] = in_filters
             wshapes = _infer_weight_shape(op_name, dshape, self._kwargs)
             self.weight = self.params.get('weight', shape=wshapes[1],
-                                          init=kernel_initializer)
+                                          init=weight_initializer)
             if use_bias:
                 self.bias = self.params.get('bias', shape=wshapes[2],
                                             init=bias_initializer)
@@ -154,20 +154,37 @@ class Conv1D(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 3D array of shape
+        (batch_size, in_channel(in_filters), width) if `layout` is `NCW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 3D array of shape
+        (batch_size, out_channel(filters), out_width) if `layout` is `NCW`. out_width
+        depends on other input parameters as well. It is calculated as follows::
+
+            out_width = floor((w+2*p-d*(k-1)-1)/s)+1
+
+        where,
+
+        w = width, p = padding, d = dilation, k = kernel_size, s = stride
     """
     def __init__(self, filters, kernel_size, strides=1, padding=0, dilation=1,
-                 groups=1, layout='NCW', in_filters=0, activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None, **kwargs):
+                 groups=1, layout='NCW', activation=None, use_bias=True,
+                 weight_initializer=None, bias_initializer=None,
+                 in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)
         assert len(kernel_size) == 1, "kernel_size must be a number or a list of 1 ints"
         super(Conv1D, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer, bias_initializer, **kwargs)
+            in_filters, activation, use_bias, weight_initializer, bias_initializer, **kwargs)
 
 
 class Conv2D(_Conv):
@@ -217,21 +234,39 @@ class Conv2D(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 4D array of shape
+        (batch_size, in_channel(in_filters), height, width) if `layout` is `NCHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 4D array of shape
+        (batch_size, out_channel(filters), out_height, out_width) if `layout` is `NCHW`.
+        out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_width = floor((w+2*p-d*(k-1)-1)/s)+1
+            out_height = floor((h+2*p-d*(k-1)-1)/s)+1
+
+        where,
+
+        w = width, h = height, p = padding, d = dilation, k = kernel_size, s = stride
     """
     def __init__(self, filters, kernel_size, strides=(1, 1), padding=(0, 0),
-                 dilation=(1, 1), groups=1, layout='NCHW', in_filters=0,
-                 activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None, **kwargs):
+                 dilation=(1, 1), groups=1, layout='NCHW',
+                 activation=None, use_bias=True, weight_initializer=None,
+                 bias_initializer=None, in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)*2
         assert len(kernel_size) == 2, "kernel_size must be a number or a list of 2 ints"
         super(Conv2D, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer, bias_initializer, **kwargs)
+            in_filters, activation, use_bias, weight_initializer, bias_initializer, **kwargs)
 
 
 class Conv3D(_Conv):
@@ -281,21 +316,40 @@ class Conv3D(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 5D array of shape
+        (batch_size, in_channel(in_filters), depth, height, width) if `layout` is `NCDHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 5D array of shape
+        (batch_size, out_channel(filters), out_depth, out_height, out_width) if `layout` is
+        `NCDHW`. out_depth, out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_depth = floor((d+2*p-d*(k-1)-1)/s)+1
+            out_height = floor((h+2*p-d*(k-1)-1)/s)+1
+            out_width = floor((w+2*p-d*(k-1)-1)/s)+1
+
+        where,
+
+        d = depth, h = height, w = width, p = padding, d = dilation, k = kernel_size, s = stride
     """
     def __init__(self, filters, kernel_size, strides=(1, 1, 1), padding=(0, 0, 0),
-                 dilation=(1, 1, 1), groups=1, layout='NCDHW', in_filters=0,
-                 activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None, **kwargs):
+                 dilation=(1, 1, 1), groups=1, layout='NCDHW', activation=None,
+                 use_bias=True, weight_initializer=None, bias_initializer=None,
+                 in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)*3
         assert len(kernel_size) == 3, "kernel_size must be a number or a list of 3 ints"
         super(Conv3D, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer, bias_initializer, **kwargs)
+            in_filters, activation, use_bias, weight_initializer, bias_initializer, **kwargs)
 
 
 class Conv1DTranspose(_Conv):
@@ -347,15 +401,31 @@ class Conv1DTranspose(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 3D array of shape
+        (batch_size, in_channel(in_filters), width) if `layout` is `NCW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 3D array of shape
+        (batch_size, out_channel(filters), out_width) if `layout` is `NCW`.
+        out_width depends on other input parameters as well. It is calculated as follows::
+
+            out_width = (w-1)*s-2*p+k+op
+
+        where,
+
+        w = width, p = padding, k = kernel_size, s = stride, op = output_padding
     """
     def __init__(self, filters, kernel_size, strides=1, padding=0, output_padding=0,
-                 dilation=1, groups=1, layout='NCW', in_filters=0, activation=None,
-                 use_bias=True, kernel_initializer=None, bias_initializer=None,
-                 **kwargs):
+                 dilation=1, groups=1, layout='NCW', activation=None, use_bias=True,
+                 weight_initializer=None, bias_initializer=None,
+                 in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)
         if isinstance(output_padding, numeric_types):
@@ -364,7 +434,7 @@ class Conv1DTranspose(_Conv):
         assert len(output_padding) == 1, "output_padding must be a number or a list of 1 ints"
         super(Conv1DTranspose, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer,
+            in_filters, activation, use_bias, weight_initializer,
             bias_initializer, op_name='Deconvolution', adj=output_padding, **kwargs)
 
 
@@ -396,6 +466,8 @@ class Conv2DTranspose(_Conv):
     padding: An integer or a tuple/list of 2 integers,
         If padding is non-zero, then the input is implicitly zero-padded
         on both sides for padding number of points
+    out_padding : An integer or a tuple/list of 2 integers,
+        Zero-padding added to one side of the output
     dilation: An integer or tuple/list of 2 integers, specifying
         the dilation rate to use for dilated convolution.
     groups: int
@@ -416,15 +488,33 @@ class Conv2DTranspose(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 4D array of shape
+        (batch_size, in_channel(in_filters), height, width) if `layout` is `NCHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 4D array of shape
+        (batch_size, out_channel(filters), out_height, out_width) if `layout` is `NCHW`.
+        out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_height = (h-1)*s-2*p+k+op
+            out_width = (w-1)*s-2*p+k+op
+
+        where,
+
+        h = height, w = width, p = padding, k = kernel_size, s = stride, op = output_padding
     """
     def __init__(self, filters, kernel_size, strides=(1, 1), padding=(0, 0),
                  output_padding=(0, 0), dilation=(1, 1), groups=1, layout='NCHW',
-                 in_filters=0, activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None, **kwargs):
+                 activation=None, use_bias=True, weight_initializer=None,
+                 bias_initializer=None, in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)*2
         if isinstance(output_padding, numeric_types):
@@ -433,7 +523,7 @@ class Conv2DTranspose(_Conv):
         assert len(output_padding) == 2, "output_padding must be a number or a list of 2 ints"
         super(Conv2DTranspose, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer,
+            in_filters, activation, use_bias, weight_initializer,
             bias_initializer, op_name='Deconvolution', adj=output_padding, **kwargs)
 
 
@@ -465,6 +555,8 @@ class Conv3DTranspose(_Conv):
     padding: An integer or a tuple/list of 3 integers,
         If padding is non-zero, then the input is implicitly zero-padded
         on both sides for padding number of points
+    out_padding : An integer or a tuple/list of 2 integers,
+        Zero-padding added to one side of the output
     dilation: An integer or tuple/list of 3 integers, specifying
         the dilation rate to use for dilated convolution.
     groups: int
@@ -485,15 +577,35 @@ class Conv3DTranspose(_Conv):
         If you don't specify anything, no activation is applied
         (ie. "linear" activation: `a(x) = x`).
     use_bias: Boolean, whether the layer uses a bias vector.
-    kernel_initializer: Initializer for the `kernel` weights matrix
+    weight_initializer: Initializer for the `kernel` weights matrix
         see Initializer.
     bias_initializer: Initializer for the bias vector
         see Initializer.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 5D array of shape
+        (batch_size, in_channel(in_filters), depth, height, width) if `layout` is `NCDHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 5D array of shape
+        (batch_size, out_channel(filters), out_depth, out_height, out_width) if `layout` is `NCDHW`.
+        out_depth, out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_depth = (d-1)*s-2*p+k+op
+            out_height = (h-1)*s-2*p+k+op
+            out_width = (w-1)*s-2*p+k+op
+
+        where,
+
+        d = depth, h = height, w = width, p = padding, k = kernel_size, s = stride,
+        op = output_padding
     """
     def __init__(self, filters, kernel_size, strides=(1, 1, 1), padding=(0, 0, 0),
                  output_padding=(0, 0, 0), dilation=(1, 1, 1), groups=1, layout='NCDHW',
-                 in_filters=0, activation=None, use_bias=True,
-                 kernel_initializer=None, bias_initializer=None, **kwargs):
+                 activation=None, use_bias=True, weight_initializer=None,
+                 bias_initializer=None, in_filters=0, **kwargs):
         if isinstance(kernel_size, numeric_types):
             kernel_size = (kernel_size,)*3
         if isinstance(output_padding, numeric_types):
@@ -502,7 +614,7 @@ class Conv3DTranspose(_Conv):
         assert len(output_padding) == 3, "output_padding must be a number or a list of 3 ints"
         super(Conv3DTranspose, self).__init__(
             filters, kernel_size, strides, padding, dilation, groups, layout,
-            in_filters, activation, use_bias, kernel_initializer, bias_initializer,
+            in_filters, activation, use_bias, weight_initializer, bias_initializer,
             op_name='Deconvolution', adj=output_padding, **kwargs)
 
 
@@ -539,9 +651,25 @@ class MaxPool1D(_Pooling):
         If padding is non-zero, then the input is implicitly
         zero-padded on both sides for padding number of points
     layout: A string,
-        Can be 'NCHW', 'NHWC', etc.
-        'N', 'C', 'H', 'W' stands for batch, channel, and width (time) dimensions
+        Can be 'NCW', 'NWC', etc.
+        'N', 'C', 'W' stands for batch, channel, and width (time) dimensions
         respectively. padding is applied on W dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 3D array of shape
+        (batch_size, channel, width) if `layout` is `NCW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 3D array of shape
+        (batch_size, channel, out_width) if `layout` is `NCW`.
+        out_width depends on other input parameters as well. It is calculated as follows::
+
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=2, strides=None, padding=0, layout='NCW', **kwargs):
         assert layout == 'NCW', "Only supports NCW layout for now"
@@ -570,6 +698,24 @@ class MaxPool2D(_Pooling):
         Can be 'NCHW', 'NHWC', etc.
         'N', 'C', 'H', 'W' stands for batch, channel, height, and width
         dimensions respectively. padding is applied on 'H' and 'W' dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 4D array of shape
+        (batch_size, channel, height, width) if `layout` is `NCHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 4D array of shape
+        (batch_size, channel, out_height, out_width)  if `layout` is `NCHW`.
+        out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_height = ceil((h+2*p-ps)/s+1)
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        h = height, w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=(2, 2), strides=None, padding=0, layout='NCHW', **kwargs):
         assert layout == 'NCHW', "Only supports NCHW layout for now"
@@ -599,6 +745,25 @@ class MaxPool3D(_Pooling):
         'N', 'C', 'H', 'W', 'D' stands for batch, channel, height, width and
         depth dimensions respectively. padding is applied on 'D', 'H' and 'W'
         dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 5D array of shape
+        (batch_size, channel, depth, height, width) if `layout` is `NCDHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 5D array of shape
+        (batch_size, channel, out_depth, out_height, out_width) if `layout` is `NCDHW`.
+        out_depth, out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_depth = ceil((d+2*p-ps)/s+1)
+            out_height = ceil((h+2*p-ps)/s+1)
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        d = depth, h = height, w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=(2, 2, 2), strides=None, padding=0, layout='NCDHW', **kwargs):
         assert layout == 'NCDHW', "Only supports NCDHW layout for now"
@@ -622,9 +787,25 @@ class AvgPool1D(_Pooling):
         If padding is non-zero, then the input is implicitly
         zero-padded on both sides for padding number of points
     layout: A string,
-        Can be 'NCHW', 'NHWC', etc.
-        'N', 'C', 'H', 'W' stands for batch, channel, and width (time) dimensions
+        Can be 'NCW', 'NWC', etc.
+        'N', 'C', 'W' stands for batch, channel, and width (time) dimensions
         respectively. padding is applied on W dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 3D array of shape
+        (batch_size, channel, width) if `layout` is `NCW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 3D array of shape
+        (batch_size, channel, out_width) if `layout` is `NCW`.
+        out_width depends on other input parameters as well. It is calculated as follows::
+
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=2, strides=None, padding=0, layout='NCW', **kwargs):
         assert layout == 'NCW', "Only supports NCW layout for now"
@@ -653,6 +834,24 @@ class AvgPool2D(_Pooling):
         Can be 'NCHW', 'NHWC', etc.
         'N', 'C', 'H', 'W' stands for batch, channel, height, and width
         dimensions respectively. padding is applied on 'H' and 'W' dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 4D array of shape
+        (batch_size, channel, height, width) if `layout` is `NCHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 4D array of shape
+        (batch_size, channel, out_height, out_width) if `layout` is `NCHW`.
+        out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_height = ceil((h+2*p-ps)/s+1)
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        h = height, w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=(2, 2), strides=None, padding=0, layout='NCHW', **kwargs):
         assert layout == 'NCHW', "Only supports NCHW layout for now"
@@ -682,6 +881,25 @@ class AvgPool3D(_Pooling):
         'N', 'C', 'H', 'W', 'D' stands for batch, channel, height, width and
         depth dimensions respectively. padding is applied on 'D', 'H' and 'W'
         dimension.
+
+
+    Input Shape:
+        This depends on the `layout` parameter. Input is 5D array of shape
+        (batch_size, channel, depth, height, width) if `layout` is `NCDHW`.
+
+    Output Shape:
+        This depends on the `layout` parameter. Output is 5D array of shape
+        (batch_size, channel, out_depth, out_height, out_width) if `layout` is `NCDHW`.
+        out_depth, out_height and out_width depends on other input parameters as well.
+        They are calculated as follows::
+
+            out_depth = ceil((d+2*p-ps)/s+1)
+            out_height = ceil((h+2*p-ps)/s+1)
+            out_width = ceil((w+2*p-ps)/s+1)
+
+        where,
+
+        d = depth, h = height, w = width, p = padding, ps = pool_size, s = stride
     """
     def __init__(self, pool_size=(2, 2, 2), strides=None, padding=0, layout='NCDHW', **kwargs):
         assert layout == 'NCDHW', "Only supports NCDHW layout for now"
